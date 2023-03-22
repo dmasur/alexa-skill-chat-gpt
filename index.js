@@ -11,37 +11,39 @@ const languageStrings = {
 
 const LaunchRequest = {
   canHandle(handlerInput) {
-    return Alexa.isNewSession(handlerInput.requestEnvelope) 
-      || Alexa.getRequestType(handlerInput.requestEnvelope) === 'LaunchRequest';
+    return Alexa.isNewSession(handlerInput.requestEnvelope)
+        || Alexa.getRequestType(handlerInput.requestEnvelope) === 'LaunchRequest';
   },
   async handle(handlerInput) {
     const { attributesManager } = handlerInput;
     const requestAttributes = attributesManager.getRequestAttributes();
     // const attributes = await attributesManager.getPersistentAttributes() || {};
-    // attributesManager.setSessionAttributes(attributes);
+    attributesManager.setSessionAttributes({
+      interaction: 0
+    });
 
     const speechOutput = requestAttributes.t('LAUNCH_MESSAGE');
     const reprompt = requestAttributes.t('CONTINUE_MESSAGE');
 
     return handlerInput.responseBuilder
-      .speak(speechOutput)
-      .reprompt(reprompt)
-      .getResponse();
+        .speak(speechOutput)
+        .reprompt(reprompt)
+        .getResponse();
   },
 };
 
 const ExitHandler = {
   canHandle(handlerInput) {
     return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
-      && (Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.CancelIntent'
-        || Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.StopIntent');
+        && (Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.CancelIntent'
+            || Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.StopIntent');
   },
   handle(handlerInput) {
     const requestAttributes = handlerInput.attributesManager.getRequestAttributes();
 
     return handlerInput.responseBuilder
-      .speak(requestAttributes.t('EXIT_MESSAGE'))
-      .getResponse();
+        .speak(requestAttributes.t('EXIT_MESSAGE'))
+        .getResponse();
   },
 };
 
@@ -57,39 +59,39 @@ const SessionEndedRequest = {
 
 const HelpIntent = {
   canHandle(handlerInput) {
-    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest' 
-      && Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.HelpIntent';
+    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+        && Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.HelpIntent';
   },
   handle(handlerInput) {
     const requestAttributes = handlerInput.attributesManager.getRequestAttributes();
 
     return handlerInput.responseBuilder
-      .speak(requestAttributes.t('HELP_MESSAGE'))
-      .reprompt(requestAttributes.t('HELP_REPROMPT'))
-      .getResponse();
+        .speak(requestAttributes.t('HELP_MESSAGE'))
+        .reprompt(requestAttributes.t('HELP_REPROMPT'))
+        .getResponse();
   },
 };
 
 const YesIntent = {
   canHandle(handlerInput) {
     return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
-      && Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.YesIntent';
+        && Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.YesIntent';
   },
   handle(handlerInput) {
     const { attributesManager } = handlerInput;
     const requestAttributes = attributesManager.getRequestAttributes();
 
     return handlerInput.responseBuilder
-      .speak(requestAttributes.t('YES_MESSAGE'))
-      .reprompt(requestAttributes.t('HELP_REPROMPT'))
-      .getResponse();
+        .speak(requestAttributes.t('YES_MESSAGE'))
+        .reprompt(requestAttributes.t('HELP_REPROMPT'))
+        .getResponse();
   },
 };
 
 const NoIntent = {
   canHandle(handlerInput) {
     return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
-      && Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.NoIntent';
+        && Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.NoIntent';
   },
   async handle(handlerInput) {
     const { attributesManager } = handlerInput;
@@ -99,8 +101,8 @@ const NoIntent = {
     // await attributesManager.savePersistentAttributes();
 
     return handlerInput.responseBuilder
-      .speak(requestAttributes.t('EXIT_MESSAGE'))
-      .getResponse();
+        .speak(requestAttributes.t('EXIT_MESSAGE'))
+        .getResponse();
 
   },
 };
@@ -113,35 +115,88 @@ const UnhandledIntent = {
     const requestAttributes = handlerInput.attributesManager.getRequestAttributes();
 
     return handlerInput.responseBuilder
-      .speak(requestAttributes.t('CONTINUE_MESSAGE'))
-      .reprompt(requestAttributes.t('CONTINUE_MESSAGE'))
-      .getResponse();
+        .speak(requestAttributes.t('CONTINUE_MESSAGE'))
+        .reprompt(requestAttributes.t('CONTINUE_MESSAGE'))
+        .getResponse();
   },
 };
 
+function isProduct(product) {
+  return product &&
+      product.length > 0;
+}
+
+function isEntitled(product) {
+  return isProduct(product) &&
+      product[0].entitled === 'ENTITLED';
+}
+
 const AskingQuestionIntent = {
   canHandle(handlerInput) {
-    const { attributesManager } = handlerInput;
-    const sessionAttributes = attributesManager.getSessionAttributes();
     return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
-      && Alexa.getIntentName(handlerInput.requestEnvelope) === 'AskingQuestionIntent';
+        && Alexa.getIntentName(handlerInput.requestEnvelope) === 'AskingQuestionIntent';
   },
   async handle(handlerInput) {
+    const sessionAttributes = handlerInput.attributesManager.getSessionAttributes();
     const requestAttributes = handlerInput.attributesManager.getRequestAttributes();
-    const question = Alexa.getSlotValue(handlerInput.requestEnvelope, 'question');
+    const question = Alexa.getSlotValue(handlerInput.requestEnvelope, 'user_input');
+    sessionAttributes.interaction += 1;
+
+    //Check subscription status
+    const locale = handlerInput.requestEnvelope.request.locale;
+    const ms = handlerInput.serviceClientFactory.getMonetizationServiceClient();
+    const result = await ms.getInSkillProducts(locale);
+    const subscription = result.inSkillProducts.filter(record => record.referenceName === 'yearly_subscription');
+    if (sessionAttributes.interaction > 5 && !isEntitled(subscription)) {
+      return handlerInput.responseBuilder
+          .speak(requestAttributes.t('SUBSCRIPTION_UPSELL', response))
+          .reprompt(requestAttributes.t('CONTINUE_MESSAGE'))
+          .getResponse();
+    }
+
     let secretsManager = new AWS.SecretsManager({region: 'us-west-2'});
     const rawApiKey = await secretsManager.getSecretValue({SecretId: "chatgpt/apikey"}).promise();
     const apiKey = rawApiKey.SecretString;
     const api = new ChatGPTAPI({
       apiKey: apiKey
     });
-    const res = await api.sendMessage(question)
-    const response = res.text;
+    try {
+      const res = await api.sendMessage(question, {
+        timeoutMs: 8000
+      });
+      const response = res.text;
+      return handlerInput.responseBuilder
+          .speak(requestAttributes.t('QUESTION_RESPONSE', response))
+          .reprompt(requestAttributes.t('CONTINUE_MESSAGE'))
+          .getResponse();
+    } catch (error) {
+      return handlerInput.responseBuilder
+          .speak(requestAttributes.t('TIMEOUT_ERROR_MESSAGE'))
+          .reprompt(requestAttributes.t('CONTINUE_MESSAGE'))
+          .getResponse();
+    }
+  }
+}
 
+const BuySubsIntent = {
+  canHandle(handlerInput) {
+    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+        && Alexa.getIntentName(handlerInput.requestEnvelope) === 'BuySubsIntent';
+  },
+  async handle(handlerInput) {
+    const requestAttributes = handlerInput.attributesManager.getRequestAttributes();
     return handlerInput.responseBuilder
-      .speak(requestAttributes.t('QUESTION_RESPONSE', response))
-      .reprompt(requestAttributes.t('ANOTHER_QUESTION_REPROMPT'))
-      .getResponse();
+        .addDirective({
+          type: "Connections.SendRequest",
+          name: "Buy",
+          payload: {
+            InSkillProduct: {
+              productId: "amzn1.adg.product.1552c261-fbce-42eb-900a-779d0923cbeb",
+            }
+          },
+          token: "amzn1.adg.product.1552c261-fbce-42eb-900a-779d0923cbeb"
+        })
+        .getResponse();
   }
 }
 
@@ -155,9 +210,27 @@ const ErrorHandler = {
     const requestAttributes = handlerInput.attributesManager.getRequestAttributes();
 
     return handlerInput.responseBuilder
-      .speak(requestAttributes.t('ERROR_MESSAGE'))
-      .reprompt(requestAttributes.t('ERROR_MESSAGE'))
-      .getResponse();
+        .speak(requestAttributes.t('ERROR_MESSAGE'))
+        .reprompt(requestAttributes.t('ERROR_MESSAGE'))
+        .getResponse();
+  },
+};
+
+const FallbackHandler = {
+  canHandle(handlerInput) {
+    // handle fallback intent, yes and no when playing a game
+    // for yes and no, will only get here if and not caught by the normal intent handler
+    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+        && (Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.FallbackIntent');
+  },
+  handle(handlerInput) {
+    const { attributesManager } = handlerInput;
+    const requestAttributes = attributesManager.getRequestAttributes();
+
+    return handlerInput.responseBuilder
+        .speak(requestAttributes.t('FALLBACK_MESSAGE'))
+        .reprompt(requestAttributes.t('CONTINUE_MESSAGE'))
+        .getResponse();
   },
 };
 
@@ -193,16 +266,19 @@ const LocalizationInterceptor = {
 const skillBuilder = Alexa.SkillBuilders.custom();
 
 export const handler = skillBuilder
-  .addRequestHandlers(
-    AskingQuestionIntent,
-    LaunchRequest,
-    ExitHandler,
-    SessionEndedRequest,
-    HelpIntent,
-    YesIntent,
-    NoIntent,
-    UnhandledIntent
-  )
-  .addRequestInterceptors(LocalizationInterceptor)
-  .addErrorHandlers(ErrorHandler)
-  .lambda();
+    .addRequestHandlers(
+        AskingQuestionIntent,
+        BuySubsIntent,
+        LaunchRequest,
+        ExitHandler,
+        FallbackHandler,
+        SessionEndedRequest,
+        HelpIntent,
+        YesIntent,
+        NoIntent,
+        UnhandledIntent
+    )
+    .addRequestInterceptors(LocalizationInterceptor)
+    .addErrorHandlers(ErrorHandler)
+    .withApiClient(new Alexa.DefaultApiClient())
+    .lambda();
