@@ -2,10 +2,12 @@
   "name": "skill-sample-nodejs-highlowgame",
   "version": "2.6.0",
   "description": "High-low number guessing game for Alexa (i18n)",
-  "main": "index.js",
+  "main": "lambda/index.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "npm install && node ./lambda/index.js",
+    "release": "npm run build && zip -r lambda.zip ."
   },
   "repository": {
     "type": "git",

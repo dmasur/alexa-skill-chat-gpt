@@ -149,7 +149,7 @@ const AskingQuestionIntent = {
     const subscription = result.inSkillProducts.filter(record => record.referenceName === 'yearly_subscription');
     if (sessionAttributes.interaction > 5 && !isEntitled(subscription)) {
       return handlerInput.responseBuilder
-          .speak(requestAttributes.t('SUBSCRIPTION_UPSELL', response))
+          .speak(requestAttributes.t('SUBSCRIPTION_UPSELL'))
           .reprompt(requestAttributes.t('CONTINUE_MESSAGE'))
           .getResponse();
     }
@@ -184,7 +184,6 @@ const BuySubsIntent = {
         && Alexa.getIntentName(handlerInput.requestEnvelope) === 'BuySubsIntent';
   },
   async handle(handlerInput) {
-    const requestAttributes = handlerInput.attributesManager.getRequestAttributes();
     return handlerInput.responseBuilder
         .addDirective({
           type: "Connections.SendRequest",
@@ -199,6 +198,27 @@ const BuySubsIntent = {
         .getResponse();
   }
 }
+
+const CancelSubIntent = {
+  canHandle(handlerInput) {
+    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+        && Alexa.getIntentName(handlerInput.requestEnvelope) === 'CancelSubIntent';
+  },
+  async handle(handlerInput) {
+    return handlerInput.responseBuilder
+        .addDirective({
+          type: "Connections.SendRequest",
+          name: "Cancel",
+          payload: {
+            InSkillProduct: {
+              productId: "amzn1.adg.product.1552c261-fbce-42eb-900a-779d0923cbeb",
+            }
+          },
+          token: "amzn1.adg.product.1552c261-fbce-42eb-900a-779d0923cbeb"
+        })
+        .getResponse();
+  },
+};
 
 const ErrorHandler = {
   canHandle() {
@@ -276,6 +296,7 @@ export const handler = skillBuilder
         HelpIntent,
         YesIntent,
         NoIntent,
+        CancelSubIntent,
         UnhandledIntent
     )
     .addRequestInterceptors(LocalizationInterceptor)
